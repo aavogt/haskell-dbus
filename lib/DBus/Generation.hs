@@ -12,7 +12,6 @@ import qualified DBus.Introspection.Types as I
 import qualified Data.ByteString as BS
 import qualified Data.Char as Char
 import           Data.Coerce
-import           Data.Functor ((<$>))
 import           Data.Int
 import           Data.List
 import qualified Data.Map as Map
@@ -142,6 +141,9 @@ makeFromVariantApp name = AppE (VarE 'T.fromVariant) $ VarE name
 makeJustPattern :: Name -> Pat
 makeJustPattern name = ConP 'Just [VarP name]
 
+tupE' :: [Exp] -> Exp
+tupE' = TupE . map Just
+
 mapOrHead ::
   (Num a, Eq a) => a -> (t -> b) -> [t] -> ([b] -> b) -> b
 mapOrHead outputLength fn names cons =
@@ -232,8 +234,8 @@ generateClientMethod GenerationParams
     finalOutputNames <- buildOutputNames
     let variantListExp = map makeToVariantApp methodArgNames
         mapOrHead' = mapOrHead outputLength
-        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames TupE
-        finalResultTuple = mapOrHead' VarE finalOutputNames TupE
+        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames tupE'
+        finalResultTuple = mapOrHead' VarE finalOutputNames tupE'
         maybeExtractionPattern = mapOrHead' makeJustPattern finalOutputNames TupP
         getMethodCallDefDec = [d|
                $( varP methodCallDefN ) =
@@ -432,7 +434,7 @@ generateSignal GenerationParams
                      }
                  |]
     let mapOrHead' = mapOrHead argCount
-        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames TupE
+        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames tupE'
         maybeExtractionPattern = mapOrHead' makeJustPattern toHandlerOutputNames TupP
         applyToName toApply n = AppE toApply $ VarE n
         finalApplication = foldl applyToName (VarE handlerArgN)
