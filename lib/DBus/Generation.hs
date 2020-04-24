@@ -136,8 +136,8 @@ maybeName name condition = if condition then Just name else Nothing
 makeToVariantApp :: Name -> Exp
 makeToVariantApp name = AppE (VarE 'T.toVariant) $ VarE name
 
-makeFromVariantApp :: Name -> Exp
-makeFromVariantApp name = AppE (VarE 'T.fromVariant) $ VarE name
+makeFromVariantApp :: Name -> ExpQ
+makeFromVariantApp name = [| T.fromVariant $(varE name) |]
 
 makeJustPattern :: Name -> Pat
 makeJustPattern name = ConP 'Just [VarP name]
@@ -232,8 +232,8 @@ generateClientMethod GenerationParams
     finalOutputNames <- buildOutputNames
     let variantListExp = map makeToVariantApp methodArgNames
         mapOrHead' = mapOrHead outputLength
-        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames TupE
-        finalResultTuple = mapOrHead' VarE finalOutputNames TupE
+        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames tupE
+        finalResultTuple = mapOrHead' varE finalOutputNames tupE
         maybeExtractionPattern = mapOrHead' makeJustPattern finalOutputNames TupP
         getMethodCallDefDec = [d|
                $( varP methodCallDefN ) =
@@ -259,8 +259,8 @@ generateClientMethod GenerationParams
             [|
                case M.methodReturnBody $( varE replySuccessN ) of
                      $( return $ ListP $ map VarP fromVariantOutputNames ) ->
-                       case $( return fromVariantExp ) of
-                         $( return maybeExtractionPattern ) -> Right $( return finalResultTuple )
+                       case $fromVariantExp of
+                         $( return maybeExtractionPattern ) -> Right $finalResultTuple
                          _ -> Left $ clientArgumentUnpackingError $
                               M.methodReturnBody $( varE replySuccessN )
                      _ -> Left $ clientArgumentUnpackingError $
@@ -432,7 +432,7 @@ generateSignal GenerationParams
                      }
                  |]
     let mapOrHead' = mapOrHead argCount
-        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames TupE
+        fromVariantExp = mapOrHead' makeFromVariantApp fromVariantOutputNames tupE
         maybeExtractionPattern = mapOrHead' makeJustPattern toHandlerOutputNames TupP
         applyToName toApply n = AppE toApply $ VarE n
         finalApplication = foldl applyToName (VarE handlerArgN)
@@ -472,7 +472,7 @@ generateSignal GenerationParams
             [|
                case M.signalBody $( varE receivedSignalN ) of
                  $( return $ ListP $ map VarP fromVariantOutputNames ) ->
-                   case $( return fromVariantExp ) of
+                   case $fromVariantExp of
                      $( return maybeExtractionPattern ) -> $( return finalApplication )
                      _ -> $( getErrorHandler )
                  _ -> $( getErrorHandler )
